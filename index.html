@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Time Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 2rem;
+      letter-spacing: -0.02em;
+    }
+
+    /* Timer card */
+    .timer-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .timer-display {
+      font-size: 2.5rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 300;
+      letter-spacing: 0.02em;
+      color: #111;
+    }
+
+    .timer-display.running {
+      color: #2563eb;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1.4rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.35; cursor: default; }
+
+    .btn-start {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .btn-stop {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    /* Log */
+    .log-empty {
+      text-align: center;
+      color: #888;
+      font-size: 0.9rem;
+      padding: 3rem 0;
+    }
+
+    .week-group {
+      margin-bottom: 2rem;
+    }
+
+    .week-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      margin-bottom: 0.75rem;
+    }
+
+    .day-group {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+    }
+
+    .day-header {
+      padding: 0.65rem 1rem;
+      background: #fafafa;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .day-total {
+      font-weight: 400;
+      color: #555;
+    }
+
+    .entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 1rem;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .entry:last-child { border-bottom: none; }
+
+    .entry-times {
+      color: #444;
+    }
+
+    .entry-duration {
+      font-variant-numeric: tabular-nums;
+      color: #666;
+    }
+
+    .entry-delete {
+      background: none;
+      color: #ccc;
+      padding: 0.2rem 0.4rem;
+      font-size: 1rem;
+      line-height: 1;
+      border-radius: 4px;
+      margin-left: 0.75rem;
+    }
+
+    .entry-delete:hover { color: #ef4444; background: #fff0f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Time Tracker</h1>
+
+    <div class="timer-card">
+      <div class="timer-display" id="display">00:00:00</div>
+      <div class="controls">
+        <button class="btn-start" id="btnStart">Start</button>
+        <button class="btn-stop"  id="btnStop"  disabled>Stop</button>
+      </div>
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'time_tracker_entries';
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let entries = load();
+    let startTime = null;
+    let tickInterval = null;
+
+    // ── DOM refs ─────────────────────────────────────────────────────────────
+    const display  = document.getElementById('display');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop  = document.getElementById('btnStop');
+    const logEl    = document.getElementById('log');
+
+    // ── Controls ─────────────────────────────────────────────────────────────
+    btnStart.addEventListener('click', () => {
+      startTime = Date.now();
+      display.classList.add('running');
+      btnStart.disabled = true;
+      btnStop.disabled  = false;
+      tickInterval = setInterval(tick, 500);
+    });
+
+    btnStop.addEventListener('click', () => {
+      const endTime = Date.now();
+      clearInterval(tickInterval);
+      display.classList.remove('running');
+      btnStart.disabled = false;
+      btnStop.disabled  = true;
+      display.textContent = '00:00:00';
+
+      entries.push({ id: crypto.randomUUID(), start: startTime, end: endTime });
+      startTime = null;
+      save();
+      render();
+    });
+
+    function tick() {
+      display.textContent = formatDuration(Date.now() - startTime);
+    }
+
+    // ── Formatting ───────────────────────────────────────────────────────────
+    function formatDuration(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      return [h, m, s].map(n => String(n).padStart(2, '0')).join(':');
+    }
+
+    function formatTime(ts) {
+      return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDateHeading(dateStr) {
+      // dateStr is YYYY-MM-DD in local time
+      const [y, mo, d] = dateStr.split('-').map(Number);
+      return new Date(y, mo - 1, d).toLocaleDateString([], {
+        weekday: 'long', month: 'short', day: 'numeric'
+      });
+    }
+
+    function localDateStr(ts) {
+      const d = new Date(ts);
+      const y = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${mo}-${day}`;
+    }
+
+    // Returns the Monday of the week containing dateStr (YYYY-MM-DD)
+    function weekStart(dateStr) {
+      const [y, mo, d] = dateStr.split('-').map(Number);
+      const date = new Date(y, mo - 1, d);
+      const day = date.getDay(); // 0 = Sun
+      const diff = (day === 0 ? -6 : 1 - day);
+      date.setDate(date.getDate() + diff);
+      return localDateStr(date.getTime());
+    }
+
+    function weekLabel(mondayStr) {
+      const [y, mo, d] = mondayStr.split('-').map(Number);
+      const mon = new Date(y, mo - 1, d);
+      const sun = new Date(y, mo - 1, d + 6);
+      const fmt = d => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      const yearSuffix = mon.getFullYear() !== new Date().getFullYear()
+        ? ` ${mon.getFullYear()}` : '';
+      return `${fmt(mon)} – ${fmt(sun)}${yearSuffix}`;
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
+    function render() {
+      if (entries.length === 0) {
+        logEl.innerHTML = '<p class="log-empty">No entries yet. Hit Start to begin tracking.</p>';
+        return;
+      }
+
+      // Sort newest first
+      const sorted = [...entries].sort((a, b) => b.start - a.start);
+
+      // Group by date → then by week
+      const byDate = {};
+      for (const e of sorted) {
+        const d = localDateStr(e.start);
+        (byDate[d] = byDate[d] || []).push(e);
+      }
+
+      const byWeek = {};
+      for (const dateStr of Object.keys(byDate)) {
+        const ws = weekStart(dateStr);
+        (byWeek[ws] = byWeek[ws] || {})[dateStr] = byDate[dateStr];
+      }
+
+      // Render weeks newest first
+      const weeks = Object.keys(byWeek).sort((a, b) => b.localeCompare(a));
+
+      logEl.innerHTML = weeks.map(ws => {
+        const dates = Object.keys(byWeek[ws]).sort((a, b) => b.localeCompare(a));
+
+        const daysHtml = dates.map(dateStr => {
+          const dayEntries = byWeek[ws][dateStr];
+          const dayMs = dayEntries.reduce((sum, e) => sum + (e.end - e.start), 0);
+
+          const rowsHtml = dayEntries.map(e => `
+            <div class="entry">
+              <span class="entry-times">${formatTime(e.start)} – ${formatTime(e.end)}</span>
+              <span>
+                <span class="entry-duration">${formatDuration(e.end - e.start)}</span>
+                <button class="entry-delete" data-id="${e.id}" title="Delete entry">×</button>
+              </span>
+            </div>`).join('');
+
+          return `
+            <div class="day-group">
+              <div class="day-header">
+                <span>${formatDateHeading(dateStr)}</span>
+                <span class="day-total">${formatDuration(dayMs)}</span>
+              </div>
+              ${rowsHtml}
+            </div>`;
+        }).join('');
+
+        return `
+          <div class="week-group">
+            <div class="week-label">${weekLabel(ws)}</div>
+            ${daysHtml}
+          </div>`;
+      }).join('');
+
+      // Delete handlers
+      logEl.querySelectorAll('.entry-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          entries = entries.filter(e => e.id !== btn.dataset.id);
+          save();
+          render();
+        });
+      });
+    }
+
+    // ── Persistence ──────────────────────────────────────────────────────────
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function load() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    render();
+  </script>
+</body>
+</html>
