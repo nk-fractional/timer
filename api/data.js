@@ -1,10 +1,11 @@
 import { put, list, del } from '@vercel/blob';
 
 const BLOB_NAME = 'tracker-data.json';
+const BLOB_PREFIX = 'tracker-data';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
-    const { blobs } = await list({ prefix: BLOB_NAME });
+    const { blobs } = await list({ prefix: BLOB_PREFIX });
     console.log('GET: found blobs:', blobs.map(b => ({ url: b.url, size: b.size, uploadedAt: b.uploadedAt })));
     if (!blobs.length) {
       return res.status(200).json({ entries: [], clients: {}, priorities: {} });
@@ -22,7 +23,7 @@ export default async function handler(req, res) {
     console.log('POST: entries count:', body.entries?.length);
 
     // Delete all existing blobs with this name before writing
-    const { blobs } = await list({ prefix: BLOB_NAME });
+    const { blobs } = await list({ prefix: BLOB_PREFIX });
     if (blobs.length) {
       await del(blobs.map(b => b.url));
       console.log('POST: deleted', blobs.length, 'old blob(s)');
