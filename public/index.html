@@ -21,12 +21,19 @@
       margin: 0 auto;
     }
 
+    .header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+
     h1 {
       font-size: 1.5rem;
       font-weight: 600;
-      margin-bottom: 2rem;
       letter-spacing: -0.02em;
     }
+
 
     /* Timer card */
     .timer-card {
@@ -300,7 +307,9 @@
 </head>
 <body>
   <div class="container">
-    <h1>Nora's Time Tracker</h1>
+    <div class="header">
+      <h1>Nora's Time Tracker</h1>
+    </div>
 
     <div class="timer-card">
       <div class="timer-card-top">
@@ -655,9 +664,6 @@
       catch { return {}; }
     })();
 
-    function saveClientColors() {
-      localStorage.setItem(CLIENT_STORAGE_KEY, JSON.stringify(clientColors));
-    }
 
     function getClientColor(name) {
       const key = name.toLowerCase();
@@ -707,8 +713,16 @@
     }
 
     // ── Persistence ──────────────────────────────────────────────────────────
-    function save() {
+    const PRIORITIES_KEY = 'time_tracker_priorities';
+    let weekPriorities = (() => {
+      try { return JSON.parse(localStorage.getItem(PRIORITIES_KEY)) || {}; }
+      catch { return {}; }
+    })();
+
+    function saveLocal() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      localStorage.setItem(CLIENT_STORAGE_KEY, JSON.stringify(clientColors));
+      localStorage.setItem(PRIORITIES_KEY, JSON.stringify(weekPriorities));
     }
 
     function load() {
@@ -716,19 +730,58 @@
       catch { return []; }
     }
 
-    const PRIORITIES_KEY = 'time_tracker_priorities';
-    let weekPriorities = (() => {
-      try { return JSON.parse(localStorage.getItem(PRIORITIES_KEY)) || {}; }
-      catch { return {}; }
-    })();
+    function saveClientColors() {
+      localStorage.setItem(CLIENT_STORAGE_KEY, JSON.stringify(clientColors));
+      syncToCloud();
+    }
 
     function savePriorities() {
       localStorage.setItem(PRIORITIES_KEY, JSON.stringify(weekPriorities));
+      syncToCloud();
+    }
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      syncToCloud();
+    }
+
+    // ── Cloud sync ────────────────────────────────────────────────────────────
+    let syncTimeout = null;
+
+    function syncToCloud() {
+      // Debounce so rapid saves (e.g. live timer ticks) don't flood the API
+      clearTimeout(syncTimeout);
+      syncTimeout = setTimeout(async () => {
+        try {
+          await fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries, clients: clientColors, priorities: weekPriorities }),
+          });
+        } catch (err) {
+          console.warn('Cloud sync failed, data is safe in localStorage:', err);
+        }
+      }, 1000);
+    }
+
+    async function loadFromCloud() {
+      try {
+        const res = await fetch('/api/data');
+        if (!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
+        if (data.entries)    entries       = data.entries;
+        if (data.clients)    clientColors  = data.clients;
+        if (data.priorities) weekPriorities = data.priorities;
+        saveLocal();
+      } catch (err) {
+        console.warn('Could not reach cloud, using localStorage:', err);
+      }
     }
 
     // ── Init ─────────────────────────────────────────────────────────────────
     drawIdleFavicon();
-    render();
+    render(); // render immediately from localStorage so the page isn't blank
+    loadFromCloud().then(render); // then refresh from cloud
   </script>
 </body>
 </html>
