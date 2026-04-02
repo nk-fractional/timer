@@ -344,7 +344,6 @@
 
     // ── State ────────────────────────────────────────────────────────────────
     let entries = load();
-    if (entries.length === 0) { entries = makeSeed(); save(); }
     let startTime = null;
     let tickInterval = null;
 
@@ -769,9 +768,9 @@
         const res = await fetch('/api/data');
         if (!res.ok) throw new Error(res.statusText);
         const data = await res.json();
-        if (data.entries)    entries       = data.entries;
-        if (data.clients)    clientColors  = data.clients;
-        if (data.priorities) weekPriorities = data.priorities;
+        if (data.entries?.length)               entries        = data.entries;
+        if (Object.keys(data.clients  ?? {}).length) clientColors   = data.clients;
+        if (Object.keys(data.priorities ?? {}).length) weekPriorities = data.priorities;
         saveLocal();
       } catch (err) {
         console.warn('Could not reach cloud, using localStorage:', err);

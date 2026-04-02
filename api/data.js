@@ -1,4 +1,4 @@
-import { put, list, getDownloadUrl } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
 
 const BLOB_NAME = 'tracker-data.json';
 
@@ -8,14 +8,14 @@ export default async function handler(req, res) {
     if (!blobs.length) {
       return res.status(200).json({ entries: [], clients: {}, priorities: {} });
     }
-    const response = await fetch(getDownloadUrl(blobs[0].url));
+    const response = await fetch(blobs[0].url);
     const data = await response.json();
     return res.status(200).json(data);
   }
 
   if (req.method === 'POST') {
     await put(BLOB_NAME, JSON.stringify(req.body), {
-      access: 'private',
+      access: 'public',
       allowOverwrite: true,
       contentType: 'application/json',
     });
