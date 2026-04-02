@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Time Tracker</title>
+  <title>Nora's Time Tracker</title>
+  <link rel="icon" id="favicon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -35,9 +36,48 @@
       padding: 1.5rem;
       margin-bottom: 2rem;
       display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .timer-card.running {
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      border-color: rgba(37, 99, 235, 0.3);
+    }
+
+    .timer-card-top {
+      display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
+    }
+
+    .description-input {
+      width: 100%;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 0.55rem 0.85rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: #222;
+      outline: none;
+      resize: none;
+      line-height: 1.5;
+      opacity: 0;
+      max-height: 0;
+      overflow: hidden;
+      transition: opacity 0.2s ease, max-height 0.25s ease, border-color 0.15s ease;
+      display: block;
+    }
+
+    .description-input:focus {
+      border-color: #2563eb;
+    }
+
+    .description-input.visible {
+      opacity: 1;
+      max-height: 8rem;
     }
 
     .timer-display {
@@ -46,6 +86,7 @@
       font-weight: 300;
       letter-spacing: 0.02em;
       color: #111;
+      transition: color 0.3s ease;
     }
 
     .timer-display.running {
@@ -64,10 +105,11 @@
       padding: 0.6rem 1.4rem;
       font-size: 0.9rem;
       font-weight: 500;
-      transition: opacity 0.15s, transform 0.1s;
+      transition: opacity 0.15s ease, transform 0.1s ease, filter 0.15s ease;
     }
 
-    button:active { transform: scale(0.97); }
+    button:hover:not(:disabled) { filter: brightness(1.1); }
+    button:active:not(:disabled) { transform: scale(0.97); }
     button:disabled { opacity: 0.35; cursor: default; }
 
     .btn-start {
@@ -99,6 +141,12 @@
       letter-spacing: 0.08em;
       color: #888;
       margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .week-total {
+      font-variant-numeric: tabular-nums;
     }
 
     .day-group {
@@ -127,7 +175,7 @@
     .entry {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       padding: 0.6rem 1rem;
       font-size: 0.875rem;
       border-bottom: 1px solid #f0f0f0;
@@ -144,6 +192,98 @@
       color: #666;
     }
 
+    .entry-desc {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: 0.15rem;
+      cursor: text;
+      min-height: 1.1em;
+      padding: 0.25rem 0.5rem 0.25rem 0;
+      transition: color 0.15s ease, border-color 0.15s ease;
+      line-height: 1.5;
+    }
+
+    .entry-desc:empty::before {
+      content: 'Add description…';
+      color: #ccc;
+      transition: color 0.15s ease;
+    }
+
+    .entry-desc[contenteditable="true"] {
+      outline: none;
+      color: #444;
+      border-bottom: 1px dashed #bbb;
+      white-space: pre-wrap;
+    }
+
+    .desc-p {
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .desc-p + .desc-p,
+    .desc-list + .desc-p,
+    .desc-p + .desc-list {
+      margin-top: 0.2rem;
+    }
+
+    .desc-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .desc-list li {
+      display: flex;
+      gap: 0.4em;
+    }
+
+    .desc-list li::before {
+      content: '–';
+      color: #ccc;
+      flex-shrink: 0;
+    }
+
+    .week-priorities-row {
+      margin-bottom: 0.75rem;
+    }
+
+    .week-priorities-label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #bbb;
+      margin-bottom: 0.3rem;
+    }
+
+    .week-priorities {
+      font-size: 0.8rem;
+      color: #888;
+      cursor: text;
+      min-height: 1.1em;
+      flex: 1;
+      transition: color 0.15s ease;
+      line-height: 1.5;
+    }
+
+    .week-priorities:empty::before {
+      content: 'Add priorities…';
+      color: #ccc;
+    }
+
+    .week-priorities[contenteditable="true"] {
+      outline: none;
+      color: #444;
+      border-bottom: 1px dashed #bbb;
+      white-space: pre-wrap;
+    }
+
+    .client-badge {
+      font-weight: 700;
+    }
+
     .entry-delete {
       background: none;
       color: #ccc;
@@ -152,6 +292,7 @@
       line-height: 1;
       border-radius: 4px;
       margin-left: 0.75rem;
+      transition: color 0.15s ease, background 0.15s ease;
     }
 
     .entry-delete:hover { color: #ef4444; background: #fff0f0; }
@@ -159,14 +300,17 @@
 </head>
 <body>
   <div class="container">
-    <h1>Time Tracker</h1>
+    <h1>Nora's Time Tracker</h1>
 
     <div class="timer-card">
-      <div class="timer-display" id="display">00:00:00</div>
-      <div class="controls">
-        <button class="btn-start" id="btnStart">Start</button>
-        <button class="btn-stop"  id="btnStop"  disabled>Stop</button>
+      <div class="timer-card-top">
+        <div class="timer-display" id="display">00:00:00</div>
+        <div class="controls">
+          <button class="btn-start" id="btnStart">Start</button>
+          <button class="btn-stop"  id="btnStop"  disabled>Stop</button>
+        </div>
       </div>
+      <textarea class="description-input" id="descInput" placeholder="What are you working on? (- bullets · /Client tags · ⌥↩ new line)" rows="1"></textarea>
     </div>
 
     <div id="log"></div>
@@ -175,35 +319,67 @@
   <script>
     const STORAGE_KEY = 'time_tracker_entries';
 
+    // ── Seed ─────────────────────────────────────────────────────────────────
+    function makeSeed() {
+      const d = (y, mo, day, h, min, s) => new Date(y, mo - 1, day, h, min, s).getTime();
+      return [
+        // Today 2026-04-01
+        { id: crypto.randomUUID(), start: d(2026,4,1,15, 0,0), end: d(2026,4,1,15, 0,0) + (1*3600+1*60+38)*1000,  desc: 'briefing on LogicGate phase III, Sphera prototype updates' },
+        { id: crypto.randomUUID(), start: d(2026,4,1,12,31,0), end: d(2026,4,1,12,31,0) + (1*3600+53*60+28)*1000, desc: 'Sphera prototype update + doc prep, second Citrin intake call' },
+        // Yesterday 2026-03-31
+        { id: crypto.randomUUID(), start: d(2026,3,31,12,0,0), end: d(2026,3,31,17, 0, 0),                        desc: 'Sphera sync & prototype updates, review Citrin kickoff fathom, first Citrin intake call' },
+        // Mon 2026-03-30
+        { id: crypto.randomUUID(), start: d(2026,3,30, 9,30,0), end: d(2026,3,30, 9,30,0) + (34*60+13)*1000,      desc: 'Responding to Slacks, publishing blog, setting design expectations' },
+      ];
+    }
+
     // ── State ────────────────────────────────────────────────────────────────
     let entries = load();
+    if (entries.length === 0) { entries = makeSeed(); save(); }
     let startTime = null;
     let tickInterval = null;
 
     // ── DOM refs ─────────────────────────────────────────────────────────────
-    const display  = document.getElementById('display');
-    const btnStart = document.getElementById('btnStart');
-    const btnStop  = document.getElementById('btnStop');
-    const logEl    = document.getElementById('log');
+    const display    = document.getElementById('display');
+    const btnStart   = document.getElementById('btnStart');
+    const btnStop    = document.getElementById('btnStop');
+    const descInput  = document.getElementById('descInput');
+    const logEl      = document.getElementById('log');
+    const timerCard  = document.querySelector('.timer-card');
 
     // ── Controls ─────────────────────────────────────────────────────────────
     btnStart.addEventListener('click', () => {
       startTime = Date.now();
       display.classList.add('running');
+      timerCard.classList.add('running');
       btnStart.disabled = true;
       btnStop.disabled  = false;
+      descInput.classList.add('visible');
+      descInput.value = '';
+      descInput.focus();
       tickInterval = setInterval(tick, 500);
+      startFaviconPulse();
+      document.title = 'Time Tracking...';
     });
 
     btnStop.addEventListener('click', () => {
       const endTime = Date.now();
       clearInterval(tickInterval);
       display.classList.remove('running');
+      timerCard.classList.remove('running');
       btnStart.disabled = false;
       btnStop.disabled  = true;
       display.textContent = '00:00:00';
+      descInput.classList.remove('visible');
+      stopFaviconPulse();
+      document.title = "Nora's Time Tracker";
 
-      entries.push({ id: crypto.randomUUID(), start: startTime, end: endTime });
+      entries.push({
+        id: crypto.randomUUID(),
+        start: startTime,
+        end: endTime,
+        desc: descInput.value.trim(),
+      });
       startTime = null;
       save();
       render();
@@ -297,8 +473,11 @@
 
           const rowsHtml = dayEntries.map(e => `
             <div class="entry">
-              <span class="entry-times">${formatTime(e.start)} – ${formatTime(e.end)}</span>
-              <span>
+              <div>
+                <div class="entry-times">${formatTime(e.start)} – ${formatTime(e.end)}</div>
+                <div class="entry-desc" data-id="${e.id}" contenteditable="false">${renderDesc(e.desc)}</div>
+              </div>
+              <span style="display:flex;align-items:center;gap:0;flex-shrink:0">
                 <span class="entry-duration">${formatDuration(e.end - e.start)}</span>
                 <button class="entry-delete" data-id="${e.id}" title="Delete entry">×</button>
               </span>
@@ -314,9 +493,15 @@
             </div>`;
         }).join('');
 
+        const weekMs = Object.values(byWeek[ws]).flat().reduce((sum, e) => sum + (e.end - e.start), 0);
+
         return `
           <div class="week-group">
-            <div class="week-label">${weekLabel(ws)}</div>
+            <div class="week-label"><span>${weekLabel(ws)}</span><span class="week-total">${formatDuration(weekMs)}</span></div>
+            <div class="week-priorities-row">
+              <span class="week-priorities-label">Priorities</span>
+              <div class="week-priorities" data-week="${ws}" contenteditable="false">${renderDesc(weekPriorities[ws])}</div>
+            </div>
             ${daysHtml}
           </div>`;
       }).join('');
@@ -329,6 +514,196 @@
           render();
         });
       });
+
+      // Shared helper: put cursor at end of a contenteditable el
+      const focusAtEnd = el => {
+        el.focus();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      };
+
+      // Week priorities inline-edit handlers
+      logEl.querySelectorAll('.week-priorities').forEach(el => {
+        el.addEventListener('click', () => {
+          if (el.contentEditable === 'true') return;
+          el.innerText = weekPriorities[el.dataset.week] || '';
+          el.contentEditable = 'true';
+          focusAtEnd(el);
+        });
+
+        const commit = () => {
+          const raw = el.innerText.replace(/\n$/, '').trim();
+          el.contentEditable = 'false';
+          weekPriorities[el.dataset.week] = raw;
+          savePriorities();
+          el.innerHTML = renderDesc(raw);
+        };
+
+        el.addEventListener('blur', commit);
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter' && e.altKey) { e.preventDefault(); insertNewlineAtCursor(); }
+          else if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+          else if (e.key === 'Escape') { el.innerText = weekPriorities[el.dataset.week] || ''; el.blur(); }
+        });
+      });
+
+      // Description inline-edit handlers
+      logEl.querySelectorAll('.entry-desc').forEach(el => {
+        el.addEventListener('click', () => {
+          if (el.contentEditable === 'true') return;
+          const entry = entries.find(e => e.id === el.dataset.id);
+          el.innerText = entry?.desc || '';
+          el.contentEditable = 'true';
+          focusAtEnd(el);
+        });
+
+        const commit = () => {
+          const raw = el.innerText.replace(/\n$/, '').trim();
+          el.contentEditable = 'false';
+          const entry = entries.find(e => e.id === el.dataset.id);
+          if (entry) {
+            entry.desc = raw;
+            save();
+          }
+          el.innerHTML = renderDesc(raw);
+        };
+
+        el.addEventListener('blur', commit);
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter' && e.altKey) { e.preventDefault(); insertNewlineAtCursor(); }
+          else if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+          else if (e.key === 'Escape') {
+            const entry = entries.find(en => en.id === el.dataset.id);
+            el.innerText = entry?.desc || '';
+            el.blur();
+          }
+        });
+      });
+    }
+
+    // ── Favicon pulse ────────────────────────────────────────────────────────
+    const faviconEl = document.getElementById('favicon');
+    const faviconCanvas = document.createElement('canvas');
+    faviconCanvas.width = faviconCanvas.height = 32;
+    const faviconCtx = faviconCanvas.getContext('2d');
+    let faviconRaf = null;
+
+    function drawFavicon(alpha) {
+      faviconCtx.clearRect(0, 0, 32, 32);
+      faviconCtx.beginPath();
+      faviconCtx.arc(16, 16, 10, 0, Math.PI * 2);
+      faviconCtx.fillStyle = `rgba(34, 197, 94, ${alpha})`;
+      faviconCtx.fill();
+      faviconEl.href = faviconCanvas.toDataURL('image/png');
+    }
+
+    function startFaviconPulse() {
+      const period = 1500; // ms per pulse cycle
+      function frame(ts) {
+        const alpha = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin((ts / period) * Math.PI * 2));
+        drawFavicon(alpha);
+        faviconRaf = requestAnimationFrame(frame);
+      }
+      faviconRaf = requestAnimationFrame(frame);
+    }
+
+    function drawIdleFavicon() {
+      faviconCtx.clearRect(0, 0, 32, 32);
+      faviconCtx.beginPath();
+      faviconCtx.arc(16, 16, 10, 0, Math.PI * 2);
+      faviconCtx.fillStyle = 'rgb(239, 68, 68)';
+      faviconCtx.fill();
+      faviconEl.href = faviconCanvas.toDataURL('image/png');
+    }
+
+    function stopFaviconPulse() {
+      cancelAnimationFrame(faviconRaf);
+      faviconRaf = null;
+      drawIdleFavicon();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function insertNewlineAtCursor() {
+      document.execCommand('insertLineBreak');
+    }
+
+    function escHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ── Client colors ─────────────────────────────────────────────────────────
+    const CLIENT_STORAGE_KEY = 'time_tracker_clients';
+    const CLIENT_PALETTE = [
+      { border: '#2563eb', bg: '#eff6ff' },
+      { border: '#16a34a', bg: '#f0fdf4' },
+      { border: '#9333ea', bg: '#faf5ff' },
+      { border: '#ea580c', bg: '#fff7ed' },
+      { border: '#db2777', bg: '#fdf2f8' },
+      { border: '#0891b2', bg: '#ecfeff' },
+      { border: '#ca8a04', bg: '#fefce8' },
+      { border: '#0d9488', bg: '#f0fdfa' },
+      { border: '#7c3aed', bg: '#f5f3ff' },
+      { border: '#dc2626', bg: '#fef2f2' },
+    ];
+
+    let clientColors = (() => {
+      try { return JSON.parse(localStorage.getItem(CLIENT_STORAGE_KEY)) || {}; }
+      catch { return {}; }
+    })();
+
+    function saveClientColors() {
+      localStorage.setItem(CLIENT_STORAGE_KEY, JSON.stringify(clientColors));
+    }
+
+    function getClientColor(name) {
+      const key = name.toLowerCase();
+      if (!(key in clientColors)) {
+        clientColors[key] = Object.keys(clientColors).length % CLIENT_PALETTE.length;
+        saveClientColors();
+      }
+      return CLIENT_PALETTE[clientColors[key]];
+    }
+
+    // Renders a single line of text, turning /ClientName tokens into badges.
+    function renderTokens(text) {
+      return text.split(/(\/[A-Za-z][A-Za-z0-9-]*)/g).map(part => {
+        const m = part.match(/^\/([A-Za-z][A-Za-z0-9-]*)$/);
+        if (m) {
+          const { border } = getClientColor(m[1]);
+          return `<span class="client-badge" style="color:${border}">${escHtml(m[1])}</span>`;
+        }
+        return escHtml(part);
+      }).join('');
+    }
+
+    // Renders a full description: supports newlines and "- bullet" lines.
+    function renderDesc(desc) {
+      if (!desc) return '';
+      const lines = desc.split('\n');
+      const out = [];
+      let bullets = [];
+
+      const flushBullets = () => {
+        if (!bullets.length) return;
+        out.push(`<ul class="desc-list">${bullets.map(b => `<li>${renderTokens(b)}</li>`).join('')}</ul>`);
+        bullets = [];
+      };
+
+      for (const line of lines) {
+        const bm = line.match(/^-\s*(.*)/);
+        if (bm) {
+          bullets.push(bm[1]);
+        } else {
+          flushBullets();
+          out.push(line.trim() ? `<p class="desc-p">${renderTokens(line)}</p>` : '<p class="desc-p">&nbsp;</p>');
+        }
+      }
+      flushBullets();
+      return out.join('');
     }
 
     // ── Persistence ──────────────────────────────────────────────────────────
@@ -341,7 +716,18 @@
       catch { return []; }
     }
 
+    const PRIORITIES_KEY = 'time_tracker_priorities';
+    let weekPriorities = (() => {
+      try { return JSON.parse(localStorage.getItem(PRIORITIES_KEY)) || {}; }
+      catch { return {}; }
+    })();
+
+    function savePriorities() {
+      localStorage.setItem(PRIORITIES_KEY, JSON.stringify(weekPriorities));
+    }
+
     // ── Init ─────────────────────────────────────────────────────────────────
+    drawIdleFavicon();
     render();
   </script>
 </body>
