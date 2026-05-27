@@ -156,6 +156,28 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .week-label.collapsible {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .week-toggle {
+      font-size: 0.6rem;
+      color: #bbb;
+      display: inline-block;
+      margin-right: 0.4rem;
+      transition: transform 0.15s;
+      transform: rotate(90deg);
+    }
+
+    .week-group.collapsed .week-toggle {
+      transform: rotate(0deg);
+    }
+
+    .week-group.collapsed .week-content {
+      display: none;
+    }
+
     .day-group {
       background: #fff;
       border: 1px solid #e0e0e0;
@@ -500,8 +522,11 @@
 
       // Render weeks newest first
       const weeks = Object.keys(byWeek).sort((a, b) => b.localeCompare(a));
+      const currentWeek = weekStart(localDateStr(Date.now()));
 
       logEl.innerHTML = weeks.map(ws => {
+        const isPrev = ws !== currentWeek;
+        const isCollapsed = isPrev && collapsedWeeks.has(ws);
         const dates = Object.keys(byWeek[ws]).sort((a, b) => b.localeCompare(a));
 
         const daysHtml = dates.map(dateStr => {
@@ -533,13 +558,18 @@
         const weekMs = Object.values(byWeek[ws]).flat().reduce((sum, e) => sum + (e.end - e.start), 0);
 
         return `
-          <div class="week-group">
-            <div class="week-label"><span>${weekLabel(ws)}</span><span class="week-total">${formatDuration(weekMs)}</span></div>
+          <div class="week-group${isCollapsed ? ' collapsed' : ''}" data-week="${ws}">
+            <div class="week-label${isPrev ? ' collapsible' : ''}">
+              <span>${isPrev ? '<span class="week-toggle">▶</span>' : ''}${weekLabel(ws)}</span>
+              <span class="week-total">${formatDuration(weekMs)}</span>
+            </div>
+            ${isPrev ? '<div class="week-content">' : ''}
             <div class="week-priorities-row">
               <span class="week-priorities-label">Priorities</span>
               <div class="week-priorities" data-week="${ws}" contenteditable="false">${renderDesc(weekPriorities[ws])}</div>
             </div>
             ${daysHtml}
+            ${isPrev ? '</div>' : ''}
           </div>`;
       }).join('');
 
@@ -637,6 +667,21 @@
           if (e.key === 'Enter' && e.altKey) { e.preventDefault(); insertNewlineAtCursor(); }
           else if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
           else if (e.key === 'Escape') { el.innerText = weekPriorities[el.dataset.week] || ''; el.blur(); }
+        });
+      });
+
+      // Collapsible week headers
+      logEl.querySelectorAll('.week-label.collapsible').forEach(label => {
+        label.addEventListener('click', () => {
+          const weekGroup = label.closest('.week-group');
+          const ws = weekGroup.dataset.week;
+          weekGroup.classList.toggle('collapsed');
+          if (weekGroup.classList.contains('collapsed')) {
+            collapsedWeeks.add(ws);
+          } else {
+            collapsedWeeks.delete(ws);
+          }
+          localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedWeeks]));
         });
       });
 
@@ -798,6 +843,12 @@
       try { return JSON.parse(localStorage.getItem(PRIORITIES_KEY)) || {}; }
       catch { return {}; }
     })();
+
+    const COLLAPSED_KEY = 'time_tracker_collapsed_weeks';
+    let collapsedWeeks = new Set((() => {
+      try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || []; }
+      catch { return []; }
+    })());
 
     function saveLocal() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
