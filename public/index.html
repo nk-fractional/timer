@@ -576,6 +576,7 @@
       // Time edit handlers
       logEl.querySelectorAll('.entry-times').forEach(el => {
         el.addEventListener('click', () => {
+          if (el.querySelector('.time-edit')) return;
           const entry = entries.find(e => e.id === el.dataset.id);
           if (!entry) return;
 
@@ -590,7 +591,6 @@
               <span>–</span>
               <input class="time-input" type="time" data-role="end" value="${toTimeVal(entry.end)}">
             </div>`;
-          el.querySelector('[data-role="start"]').focus();
 
           const commit = () => {
             const startVal = el.querySelector('[data-role="start"]').value;
