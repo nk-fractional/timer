@@ -333,14 +333,35 @@
       margin-bottom: 0.75rem;
     }
 
+    .week-priorities-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.3rem;
+    }
+
     .week-priorities-label {
-      display: block;
       font-size: 0.7rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: #bbb;
-      margin-bottom: 0.3rem;
+    }
+
+    .btn-slack {
+      background: none;
+      border: 1px solid #e0e0e0;
+      color: #aaa;
+      padding: 0.1rem 0.5rem;
+      font-size: 0.7rem;
+      border-radius: 4px;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .btn-slack:hover:not(:disabled) {
+      color: #4A154B;
+      border-color: #4A154B;
+      filter: none;
     }
 
     .week-priorities {
@@ -592,7 +613,10 @@
             </div>
             ${isPrev ? '<div class="week-content">' : ''}
             <div class="week-priorities-row">
-              <span class="week-priorities-label">Priorities</span>
+              <div class="week-priorities-header">
+                <span class="week-priorities-label">Priorities</span>
+                <button class="btn-slack" data-week="${ws}">→ Slack</button>
+              </div>
               <div class="week-priorities" data-week="${ws}" contenteditable="false">${renderDesc(weekPriorities[ws])}</div>
             </div>
             ${daysHtml}
@@ -754,6 +778,42 @@
             collapsedWeeks.delete(ws);
           }
           localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedWeeks]));
+        });
+      });
+
+      // Slack push handlers
+      logEl.querySelectorAll('.btn-slack').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const ws = btn.dataset.week;
+          const priorities = weekPriorities[ws];
+          if (!priorities?.trim()) {
+            btn.textContent = 'Nothing to push';
+            setTimeout(() => { btn.textContent = '→ Slack'; }, 2000);
+            return;
+          }
+
+          btn.disabled = true;
+          btn.textContent = '…';
+
+          try {
+            const res = await fetch('/api/slack-priorities', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ week: ws, priorities }),
+            });
+            if (!res.ok) throw new Error();
+            btn.textContent = '✓ Sent';
+            btn.style.cssText = 'color:#16a34a;border-color:#16a34a';
+          } catch {
+            btn.textContent = 'Failed';
+            btn.style.cssText = 'color:#ef4444;border-color:#ef4444';
+          }
+
+          setTimeout(() => {
+            btn.textContent = '→ Slack';
+            btn.style.cssText = '';
+            btn.disabled = false;
+          }, 2500);
         });
       });
 
